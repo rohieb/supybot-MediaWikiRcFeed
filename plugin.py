@@ -56,16 +56,17 @@ class MediaWikiRcFeed(callbacks.Plugin):
 
   threaded = True
   rcQueryUrl = ("%s/api.php?action=query&list=recentchanges&rcprop=title|user|"
-    "ids|comment|flags|timestamp&rcshow=!bot&format=xml")
+    "ids|comment|flags|timestamp&rcshow=!bot&format=xml&"
+    "rcnamespace=0|1|2|3|4|5|6|7")
   logQueryUrl = "%s/api.php?action=query&list=logevents&format=xml"
   
   def __init__(self, irc):
     self.__parent = super(MediaWikiRcFeed, self)
     self.__parent.__init__(irc)
 
-    self.log.info("MediaWikiRcFeed: begin __init__") ############ FIXME
+    #self.log.info("MediaWikiRcFeed: begin __init__") ############ FIXME
 
-    self.baseurl = "http://stratum0.org/".rstrip("/") # FIXME: from config
+    self.baseurl = "http://stratum0.org/mediawiki".rstrip("/") # FIXME: from config
     #self.baseurl = "http://commons.wikimedia.org/w".rstrip("/") # FIXME: from config
     #self.baseurl = "http://de.wikipedia.org/w".rstrip("/") # FIXME: from config
     self.lastRcId = 0
@@ -77,25 +78,26 @@ class MediaWikiRcFeed(callbacks.Plugin):
     dom = self.loadDom(self.logQueryUrl % self.baseurl)
     self.lastLogId = self.parseLogItem(dom.getElementsByTagName("item")[0]).id
     
-    self.log.info("MediaWikiRcFeed: end __init__: lastRc %d, lastLog %d" % \
-      (self.lastRcId, self.lastLogId)) ############ FIXME
+    #self.log.info("MediaWikiRcFeed: end __init__: lastRc %d, lastLog %d" % \
+    #  (self.lastRcId, self.lastLogId)) ############ FIXME
     
   def __call__(self, irc, msg):
     #self.log.info("MediaWikiRcFeed: lastCalled is %r, time is %r" %
     #  (self.lastCalled, int(time.time())))
     if self.lastCalled + 10 < int(time.time()):  #### FIXME time from config
-      self.log.info("MediaWikiRcFeed: __call__ called")
+      #self.log.info("MediaWikiRcFeed: __call__ called")
       items = self.getItems(True)
       items.extend(self.getItems(False))
       items.sort(key=lambda x: x.timestamp)
       self.printItems(irc, items)
       self.lastCalled = int(time.time())
     else:
-      self.log.info("MediaWikiRcFeed: not calling __call__")
+      #self.log.info("MediaWikiRcFeed: not calling __call__")
+      pass
 
   def loadDom(self, url):
     """load URL and return DOM object"""
-    self.log.info("MediaWikiRcFeed: Fetching " + url)
+    #self.log.info("MediaWikiRcFeed: Fetching " + url)
     f = urllib.urlopen(url)
     return parse(f)
 
@@ -109,7 +111,8 @@ class MediaWikiRcFeed(callbacks.Plugin):
         item.getAttribute("user"), 
         item.getAttribute("timestamp"), int(item.getAttribute("old_revid")),
         int(item.getAttribute("revid")),
-        item.getAttribute("comment"), item.getAttribute("minor"))
+        item.getAttribute("comment"),
+        True if item.hasAttribute("minor") else False)
     else:
       #self.log.info("ignoring id %s: too small" % rcid)
       return None
@@ -211,7 +214,7 @@ class MediaWikiRcFeed(callbacks.Plugin):
     prefix = "" #"RC: " # FIXME from config
     #queryMax = 10 # FIXME from config
 
-    self.log.info("printItems called")  ### FIXME
+    #self.log.info("printItems called")  ### FIXME
     items = deque(items)
     while len(items) > 0:
       item = items.popleft()
@@ -220,11 +223,12 @@ class MediaWikiRcFeed(callbacks.Plugin):
       else:
         msg = self.formatLogItem(item)
       if msg and len(msg):
-        msg = "%s %s%s" % (item.timestamp, prefix, msg)
+        msg = "%s%s" % (prefix, msg)
         ### FIXME CHANGE CHANNEL
-        irc.queueMsg(ircmsgs.privmsg("#zombiepoettest", msg.encode("utf-8")))
+        irc.queueMsg(ircmsgs.privmsg("#stratum0", msg.encode("utf-8")))
       else:
-        self.log.info("Message munched: %r" % msg)
+        #self.log.info("Message munched: %r" % msg)
+        pass
 
   def formatRcItem(self, item):
     """format a recent change item"""
@@ -236,7 +240,9 @@ class MediaWikiRcFeed(callbacks.Plugin):
       if item.type == "new":
         flagStr += "N"
       if item.minor:
-        flagStr += "M"
+        #flagStr += "M"
+        self.log.info("minor edit munched");
+        return None;   # don't print minor changes
       if len(flagStr):
         flags = " [%s]" % ircutils.bold(flagStr.upper())
       else:
@@ -256,7 +262,13 @@ class MediaWikiRcFeed(callbacks.Plugin):
       len(item.comment.strip()) else ""
 
     if item.type == "delete":
-      return 'Page %s deleted by %s%s' % (ircutils.bold(item.title),
+      if item.comment.startswith("Unpassender Inhalt (Werbung, etc.)"):
+        #self.log.info("delete-spam munched")
+        return None
+      if item.action == "revision":
+        item.action = "revision delete"
+
+      return 'Page %sd %s by %s%s' % (item.action, ircutils.bold(item.title),
         ircutils.bold(item.user), comment)
     
     elif item.type == "block":
@@ -265,6 +277,10 @@ class MediaWikiRcFeed(callbacks.Plugin):
         (ircutils.bold(item.user), ircutils.bold(item.title), comment, 
         self.baseurl, self.mwUrlTitleEncode(item.title))
       else:
+        if item.comment.startswith("Einstellen unsinniger Inhalte in Seiten"):
+          #self.log.info("block-spam munched")
+          return None
+
         timespan = item.params["duration"]
         timespan = "an infinite time" if "infinite" in item.params["duration"] \
           else item.params["duration"]
