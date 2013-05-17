@@ -66,7 +66,7 @@ class MediaWikiRcFeed(callbacks.Plugin):
 
     #self.log.info("MediaWikiRcFeed: begin __init__") ############ FIXME
 
-    self.baseurl = "http://stratum0.org/mediawiki".rstrip("/") # FIXME: from config
+    self.baseurl = "https://stratum0.org/mediawiki".rstrip("/") # FIXME: from config
     #self.baseurl = "http://commons.wikimedia.org/w".rstrip("/") # FIXME: from config
     #self.baseurl = "http://de.wikipedia.org/w".rstrip("/") # FIXME: from config
     self.lastRcId = 0
