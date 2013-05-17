@@ -291,9 +291,8 @@ class MediaWikiRcFeed(callbacks.Plugin):
           flags, comment, self.baseurl, self.mwUrlTitleEncode(item.title))
     
     elif item.type == "newusers":
-      return 'New user account %s <%s/index.php?title=User:%s>' % \
-        (ircutils.bold(item.user), self.baseurl, 
-        self.mwUrlTitleEncode(item.user))
+      return 'New user account %s created by %s' % \
+        (ircutils.bold(item.title), ircutils.bold(item.user)) 
     
     elif item.type == "protect":
       if item.action == "unprotect":
